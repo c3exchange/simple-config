@@ -1,0 +1,38 @@
+{
+	"compilerOptions": {
+		"target": "es5",
+		"lib": [
+			"esnext"
+		],
+		"outDir": "lib",
+		"allowJs": true,
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
+		"strict": true,
+		"forceConsistentCasingInFileNames": true,
+		"noFallthroughCasesInSwitch": true,
+		"module": "node16",
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"sourceMap": true,
+		"alwaysStrict": true,
+		"declaration": true,
+		"emitDecoratorMetadata": true,
+		"experimentalDecorators": true,
+		"inlineSourceMap": false,
+		"noEmitOnError": true,
+		"removeComments": true,
+		"newLine": "LF",
+		"types": [ "node" ],
+		"noUnusedLocals": true,
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"strictNullChecks": true,
+		"strictPropertyInitialization": true,
+		"strictFunctionTypes": true
+	},
+	"include": [
+		"src"
+	]
+}
