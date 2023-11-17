@@ -1,8 +1,10 @@
 import process from 'process';
 import { KeyValueSet, Variable } from './types';
-import { VaultOptions, loadFromVault } from './vault';
+import { VaultOptions, loadFromVault } from './vault/vault';
 import { validateValues } from './validation';
-import { StringVar, NumberVar, EnumVar, BooleanVar } from './variables';
+export { StringVar, NumberVar, EnumVar, BooleanVar } from './vardefs';
+export type { VaultOptions };
+export type { Variable };
 
 // -----------------------------------------------------------------------------
 
@@ -13,13 +15,9 @@ export enum EnvVarsOverride {
 export interface Options {
 	vars: Variable[];
 	vaultOpts?: VaultOptions;
-	envVarsOverride: EnvVarsOverride;
+	envVarsOverride?: EnvVarsOverride;
 	modifyEnvVars?: boolean; // Defaults to true if not defined
 }
-
-export type { VaultOptions };
-export type { Variable };
-export { StringVar, NumberVar, EnumVar, BooleanVar };
 
 // -----------------------------------------------------------------------------
 
@@ -32,9 +30,21 @@ export const load = async (opts?: Options): Promise<KeyValueSet> => {
 	if (!Array.isArray(opts.vars)) {
 		throw new Error('Invalid options');
 	}
+	for (const v of opts.vars) {
+		switch (v.getType()) {
+			case 'string':
+			case 'number':
+			case 'enum':
+			case 'bool':
+				break;
+
+			default:
+				throw new Error('Invalid variable definition for "' + v.getName() + '"');
+		}
+	}
 
 	// Read variables from Hashicorp Vault if configured to do so
-	if (opts.vaultOpts) {
+	if ((!opts.vaultOpts) || opts.vaultOpts.disable) {
 		values = await loadFromVault(opts.vaultOpts);
 	}
 
@@ -44,12 +54,13 @@ export const load = async (opts?: Options): Promise<KeyValueSet> => {
 	}
 
 	// Override from process environment
-	if (opts.envVarsOverride == EnvVarsOverride.MergeMissing || opts.envVarsOverride == EnvVarsOverride.Overwrite) {
+	if ((!opts.envVarsOverride) || opts.envVarsOverride == EnvVarsOverride.MergeMissing || opts.envVarsOverride == EnvVarsOverride.Overwrite) {
+		const mergeAlways = opts.envVarsOverride === EnvVarsOverride.Overwrite;
 		for (const v of opts.vars) {
 			const varName = v.getName();
-	
+
 			if (typeof process.env[varName] === 'string') {
-				if (typeof values[varName] === 'undefined' || opts.envVarsOverride == EnvVarsOverride.Overwrite) {
+				if (mergeAlways || typeof values[varName] === 'undefined') {
 					values[varName] = process.env[varName]!;
 				}
 			}

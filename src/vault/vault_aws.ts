@@ -1,7 +1,7 @@
 import { getDefaultRoleAssumerWithWebIdentity } from '@aws-sdk/client-sts';
 import { RoleAssumerWithWebIdentity }  from '@aws-sdk/client-sts/dist-types/defaultStsRoleAssumers';
 import { ENV_CMDS_FULL_URI, ENV_CMDS_RELATIVE_URI, RemoteProviderConfig } from '@smithy/credential-provider-imds';
-import { getEnvVar } from './envvars';
+import { getEnvVar } from '../util/envvars';
 import { SignatureV4 } from '@smithy/signature-v4';
 import { HttpRequest } from '@smithy/protocol-http';
 import { Sha256 } from '@aws-crypto/sha256-js';

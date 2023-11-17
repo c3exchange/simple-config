@@ -18,9 +18,14 @@ npm i @c3exchange/simple-config
 
 ```javascript
 const variableDefs: Variable[] = [
-	StringVar.define('SERVER_HOST').minLength(10),
-	NumberVar.define('SERVER_PORT').min(1).max(65535),
-	BooleanVar.define('SERVER_SSL'),
+	StringVar.define('DATABASE_HOST').minLength(1).maxLength(256).validator((value: string, name: string): string => {
+		if (ipV4AddressRegex.test(value) || hostnameRegex.test(value)) {
+			return value;
+		}
+		throw new Error('Variable "' + name + '" is not an IPv4 address nor a host name.');
+	}),
+	NumberVar.define('DATABASE_PORT').min(1).max(65535),
+	BooleanVar.define('DATABASE_USE_SSL'),
 	EnumVar.define('DATABASE_TYPE').allowed(['mysql', 'postgresql', 'mongodb'])
 ];
 ```
@@ -30,8 +35,7 @@ const variableDefs: Variable[] = [
 ```javascript
 try {
 	const settings = await load({
-		vars: variableDefs,
-		vaultOpts: {}
+		vars: variableDefs
 	});
 	// ....
 }
@@ -48,11 +52,11 @@ Define a string variable using `StringVar.define("{variable-name}")`.
 
 The available constraints and options are:
 
-| Name    | Description                                                       |
-|---------|-------------------------------------------------------------------|
-| `min`   | Specifies the minimum value.                                      |
-| `max`   | Specifies the maximum value.                                      |
-| `isInt` | Indicates if the number must be an integer value or can be float. |
+| Name        | Description                                                                                                                      |
+|-------------|----------------------------------------------------------------------------------------------------------------------------------|
+| `minLength` | Specifies the minimum length.                                                                                                    |
+| `maxLength` | Specifies the maximum length.                                                                                                    |
+| `validator` | Specifies a custom validator callback. After performing your desired checks, the validator function can return a modified value. |
 
 ### NumberVar
 
@@ -60,10 +64,12 @@ Define a numeric variable using `NumberVar.define("{variable-name}")`.
 
 The available constraints and options are:
 
-| Name        | Description                   |
-|-------------|-------------------------------|
-| `minLength` | Specifies the minimum length. |
-| `maxLength` | Specifies the maximum length. |
+| Name        | Description                                                                                                                      |
+|-------------|----------------------------------------------------------------------------------------------------------------------------------|
+| `min`       | Specifies the minimum value.                                                                                                     |
+| `max`       | Specifies the maximum value.                                                                                                     |
+| `musBeInt`  | Indicates if the number must be an integer value or can be float.                                                                |
+| `validator` | Specifies a custom validator callback. After performing your desired checks, the validator function can return a modified value. |
 
 ### EnumVar
 
@@ -79,33 +85,41 @@ The available constraint is:
 
 Define a boolean variable using `BooleanVar.define("{variable-name}")`.
 
-The case-insensitive values `1`, `Y`, `yes`, `t` and `true` means `true` and the values `0`, `N`, `no`, `f` and `false` means `false`.
+The case-insensitive values `1`, `Y`, `yes`, `on`, `t` and `true` resolves to `true` and the values `0`, `N`, `no`, `off`, `f` and `false` resolves to `false`.
 
 ### Additional common options
 
 | Name        | Description                                                                                                                      |
 |-------------|----------------------------------------------------------------------------------------------------------------------------------|
-| `required`  | Raises an exception if the variable is not found unless `default`` is also used.                                                 |
-| `default`   | Sets a default value if the variable is not found.                                                                               |
-| `validator` | Specifies a custom validator callback. After performing your desired checks, the validator function can return a modified value. |
+| `required`  | Raises an exception if the variable is not found unless a `default`` value is assigned.                                          |
+| `default`   | Sets a default value if the variable is not defined.                                                                             |
 
 ## Loader options
 
-The `load` function accepts some configuration options that established the load behavior.
+The `load` function accepts some configuration options that established the load behavior. By default, the library will attempt to load and merge variables in the following order:
+
+1. From Vault, if access is allowed and a the environment variable containing the url is present.
+2. From the process environment.
 
 | Name              | Description                                                                                               |
 |-------------------|-----------------------------------------------------------------------------------------------------------|
 | `vars`            | An array of `Variable`` objects that defines the configuration settings to parse.                         |
 | `envVarsOverride` | Specifies if the values readed from Vault can be overriden with values stored in the process environment. |
-| `modifyEnvVars`   | The `load` function returns an object with loaded values. By enabling this setting, it will also set/overwrite the process' environment variables with stringified versions of the those values. (Defaults to `true`.) |
-| `vaultOpts`       | Indicates the loader library to try to load settings from Hashicorp Vault. If you want to enable Vault loading with default settings, pass an empty object. If not defined, the library will only load variables from process environment. |
+| `modifyEnvVars`   | The `load` function returns an object with the parsed values.<br />By enabling this setting, it will also set/overwrite the process' environment variables with stringified versions of the those values.<br />Defaults to `true`. |
+| `vaultOpts`       | Customizes Vault access behavior. See below for details.                                                  |
 
 Vault options:
 
-| Name                                       | Description                                                                                               |
-|--------------------------------------------|-----------------------------------------------------------------------------------------------------------|
-| `envVar`                                   | Sets environment variable name which holds the Vault URL. Defaults to `VAULT_URL`.                        |
-| `caCertEnvVar`, `certEnvVar` & `keyEnvVar` | Sets environment variable names that contains the filename of the CA cert, client certificate and client private keys to use when accesing Vault with HTTPS. Defaults to `VAULT_SSL_CACERT`, `VAULT_SSL_CLIENT_CERT` and  `VAULT_SSL_CLIENT_KEY` respectively. |
+| Name                   | Description                                                                                                                            |
+|------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `disable`              | Skip the attempt to load variables from Vault.                                                                                         |
+| `envVar`               | Sets what environment variable name may contain the Vault URL.<br />Defaults to `VAULT_URL`.                                           |
+| `caCertEnvVar` (1)     | Sets what environment variable name may contain the filename of the certificate autority file.<br />Defaults to `VAULT_SSL_CACERT`.    |
+| `certEnvVar`   (1) (2) | Sets what environment variable name may contain the filename of the client certificate file.<br />Defaults to `VAULT_SSL_CLIENT_CERT`. |
+| `keyEnvVar`    (1) (2) | Sets what environment variable name may contain the filename of the client private key file.<br />Defaults to `VAULT_SSL_CLIENT_KEY`.  |
+
+1. Used only when accesing Vault with HTTPS.
+2. Define both variables or none. You cannot define just one of them.
 
 # Hashicorp Vault setup and URL format
 
@@ -123,7 +137,7 @@ Where `protocol` can be `http` or `https`. `vault-host` and, optionally, `vault-
 | `roleName`            | Specifies the role name to use. Only valid for `iam` and `k8s` authentication methods.                       |
 | `roleId` & `secretId` | Specifies the role and secret ids. Only valid for the `approle` authentication method.                       |
 | `timeout`             | Establishes a query timeout. Defaults to 10 seconds.                                                         |
-| `sslmode`             | If set to `ignore`, invalid HTTPS certificates are ignored.                                                  |
+| `allowUntrusted`      | If set to `true`, invalid or expired HTTPS server certificates are ignored.                                  |
 
 Remember to do escape encoding when specifying query parameters.
 

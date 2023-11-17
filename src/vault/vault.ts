@@ -2,13 +2,15 @@ import https from 'https';
 import fs from 'fs';
 import crypto from 'crypto';
 import { URL } from 'url';
-import { getEnvVar } from './envvars';
 import { createIamAuthPayload } from './vault_aws';
-import { getAxiosClient } from './http';
+import { getAxiosClient } from '../util/http';
+import { getEnvVar } from '../util/envvars';
+import { toBool } from '../util/bool';
 
 // -----------------------------------------------------------------------------
 
 export interface VaultOptions {
+	disable?: boolean;
 	envVar?: string;         // Defaults to VAULT_URL environment variable
 	caCertEnvVar?: string;   // Defaults to VAULT_SSL_CACERT environment variable
 	certEnvVar?: string;     // Defaults to VAULT_SSL_CLIENT_CERT environment variable
@@ -24,16 +26,20 @@ const k8sTokenFiles = [
 
 // -----------------------------------------------------------------------------
 
-export const loadFromVault = async (opts: VaultOptions): Promise<Record<string, string>|undefined> => {
+export const loadFromVault = async (opts?: VaultOptions): Promise<Record<string, string>|undefined> => {
 	let url: URL;
 	let loginPayload: Record<string, string|number> = {};
 
-	// Get Vault URL
-	let s = getEnvVar(opts.envVar || 'VAULT_URL');
-	if (!s) {
-		return undefined;
+	if (!opts) {
+		opts = {};
 	}
+
+	// Get Vault URL
 	try {
+		const s = getEnvVar(opts.envVar || 'VAULT_URL');
+		if (!s) {
+			return undefined;
+		}
 		url = new URL(s);
 	}
 	catch (err) {
@@ -63,7 +69,7 @@ export const loadFromVault = async (opts: VaultOptions): Promise<Record<string, 
 	}
 
 	// Get and validate path locations to read
-	const locations = validatePath(url.searchParams.getAll('path'));
+	const locations = validatePathParam(url.searchParams.getAll('path'));
 	if (locations.length == 0) {
 		throw new Error('Invalid Vault url (path not specified or invalid)');
 	}
@@ -174,7 +180,7 @@ export const loadFromVault = async (opts: VaultOptions): Promise<Record<string, 
 	}
 
 	// Create HTTPS agent if required
-	const httpsAgent = (url.protocol == 'https:') ? createHttpsAgent(opts, url.searchParams.get('sslmode')) : undefined;
+	const httpsAgent = (url.protocol == 'https:') ? createHttpsAgent(opts, url.searchParams.get('allowUntrusted')) : undefined;
 
 	// Execute log in
 	let vaultAccessToken: string;
@@ -297,18 +303,22 @@ export const loadFromVault = async (opts: VaultOptions): Promise<Record<string, 
 
 // -----------------------------------------------------------------------------
 
-const createHttpsAgent = (opts?: VaultOptions, sslmode?: string | null) => {
+const createHttpsAgent = (opts?: VaultOptions, allowUntrusted?: string | null) => {
 	const options: https.AgentOptions = {};
 	if (opts) {
 		options.ca = readFileFromEnvSync(opts.caCertEnvVar || 'VAULT_SSL_CACERT');
 		options.cert = readFileFromEnvSync(opts.certEnvVar || 'VAULT_SSL_CLIENT_CERT');
 		options.key = readFileFromEnvSync(opts.keyEnvVar || 'VAULT_SSL_CLIENT_KEY');
 	}
-	if (sslmode) {
-		options.rejectUnauthorized = (sslmode === 'ignore') ? true : false;
+	if (allowUntrusted) {
+		const b = toBool(allowUntrusted);
+		if (typeof b === 'undefined') {
+			throw new Error('Invalid Vault url (invalid allowUntrusted value)');
+		}
+		options.rejectUnauthorized = b;
 	}
 	return new https.Agent(options);
-}
+};
 
 const readFileFromEnvSync = (envVar: string): string|undefined => {
 	const varValue = getEnvVar(envVar);
@@ -317,9 +327,9 @@ const readFileFromEnvSync = (envVar: string): string|undefined => {
 	}
 	const pem = fs.readFileSync(varValue, { encoding: 'utf8' });
 	return pem;
-}
+};
 
-const validatePath = (path: string[]): string[] => {
+const validatePathParam = (path: string[]): string[] => {
 	const finalPaths: string[] = [];
 	const keys = new Map<string, boolean>();
 
@@ -357,4 +367,4 @@ const validatePath = (path: string[]): string[] => {
 
 	// Done
 	return finalPaths;
-}
+};
