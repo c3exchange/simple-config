@@ -148,4 +148,4 @@ Remember to do escape encoding when specifying query parameters.
 
 # License
 
-[MIT](./LICENSE.txt)
+[MIT](./LICENSE)
