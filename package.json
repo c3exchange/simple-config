@@ -1,6 +1,6 @@
 {
   "name": "@c3exchange/simple-config",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Simple application configuration library",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -10,8 +10,8 @@
   ],
   "scripts": {
     "clean": "rimraf -I lib",
-    "build": "npm run clean && tsc",
-    "prepack": "npm run clean && tsc",
+    "build": "npm run clean && tsc && dts-bundle-generator -o lib/index.d.ts -no-banner src/index.ts",
+    "prepack": "npm run build",
     "test": "npm run clean && tsc --build tsconfig.tests.json && ava **/*.test.ts"
   },
   "author": "",
@@ -26,20 +26,21 @@
   },
   "devDependencies": {
     "@ava/typescript": "^4.1.0",
-    "@types/node": "^20.8.10",
-    "@typescript-eslint/eslint-plugin": "^6.9.1",
-    "@typescript-eslint/parser": "^6.9.1",
-    "ava": "^5.3.1",
+    "@types/node": "^20.11.2",
+    "@typescript-eslint/eslint-plugin": "^6.18.1",
+    "@typescript-eslint/parser": "^6.18.1",
+    "ava": "^6.0.1",
     "cross-env": "^7.0.3",
-    "eslint": "^8.52.0",
+    "dts-bundle-generator": "^9.2.4",
+    "eslint": "^8.56.0",
     "rimraf": "^5.0.5",
-    "typescript": "^5.2.2"
+    "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@aws-sdk/credential-providers": "^3.444.0",
-    "@smithy/protocol-http": "^3.0.9",
-    "@smithy/signature-v4": "^2.0.12",
-    "axios": "^1.6.0",
-    "axios-retry": "^3.8.1"
+    "@aws-sdk/credential-providers": "^3.490.0",
+    "@smithy/protocol-http": "^3.0.12",
+    "@smithy/signature-v4": "^2.0.19",
+    "axios": "^1.6.5",
+    "axios-retry": "^4.0.0"
   }
 }
