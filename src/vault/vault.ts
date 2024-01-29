@@ -92,7 +92,6 @@ export const loadFromVault = async (opts?: VaultOptions): Promise<Record<string,
 		}
 	}
 	else {
-
 		// Try to guess
 		if (roleID || secretID) {
 			method = 'approle';
