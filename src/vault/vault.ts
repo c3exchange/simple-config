@@ -47,14 +47,20 @@ export const loadFromVault = async (opts?: VaultOptions): Promise<Record<string,
 	}
 
 	// Validate protocol, hostname and path
-	if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-		throw new Error('Unsupported Vault url protocol');
+	let protocol = 'http';
+	switch (url.protocol) {
+		case 'http:':
+		case 'vault:':
+			break;
+		case 'https:':
+		case 'vaults:':
+			protocol = 'https';
+			break;
+		default:
+			throw new Error('Unsupported Vault url protocol');
 	}
 	if ((!url.hostname)) {
-		throw new Error('Invalid Vault url');
-	}
-	if (url.pathname.length > 0 && url.pathname != '/') {
-		throw new Error('Invalid Vault url');
+		throw new Error('Invalid Vault url (missing hostname)');
 	}
 
 	// Get request timeout
@@ -68,8 +74,7 @@ export const loadFromVault = async (opts?: VaultOptions): Promise<Record<string,
 		throw new Error('Invalid Vault url (missing required parameters)');
 	}
 
-	// Get and validate path locations to read
-	const locations = validatePathParam(url.searchParams.getAll('path'));
+	const locations = addAndValidatePaths(url);
 	if (locations.length == 0) {
 		throw new Error('Invalid Vault url (path not specified or invalid)');
 	}
@@ -99,7 +104,7 @@ export const loadFromVault = async (opts?: VaultOptions): Promise<Record<string,
 		else if (getEnvVar('KUBERNETES_SERVICE_HOST')) {
 			method = 'k8s';
 		}
-		else if (getEnvVar('EC2_INSTANCE_ID') || getEnvVar('ECS_CONTAINER_METADATA_URI_V4')) {
+		else if (getEnvVar('EC2_INSTANCE_ID') || getEnvVar('ECS_CONTAINER_METADATA_URI_V4') || getEnvVar('AWS_ROLE_ARN') || getEnvVar('AWS_WEB_IDENTITY_TOKEN_FILE')) {
 			method = 'iam';
 		}
 		else {
@@ -179,14 +184,14 @@ export const loadFromVault = async (opts?: VaultOptions): Promise<Record<string,
 	}
 
 	// Create HTTPS agent if required
-	const httpsAgent = (url.protocol == 'https:') ? createHttpsAgent(opts, url.searchParams.get('allowUntrusted')) : undefined;
+	const httpsAgent = (protocol == 'https') ? createHttpsAgent(opts, url.searchParams.get('allowUntrusted')) : undefined;
 
 	// Execute log in
 	let vaultAccessToken: string;
 	try {
 		const client = getAxiosClient();
 		const response = await client.request({
-			url: url.protocol + '//' + url.host + '/v1/auth/' + mountPath + '/login',
+			url: protocol + '://' + url.host + '/v1/auth/' + mountPath + '/login',
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -230,11 +235,11 @@ export const loadFromVault = async (opts?: VaultOptions): Promise<Record<string,
 	// Now read stored variables
 	const values:Record<string, string> = {};
 
-	for (const loc of locations) {
+	for (const location of locations) {
 		try {
 			const client = getAxiosClient();
 			const response = await client.request({
-				url: url.protocol + '//' + url.host + '/v1' + loc,
+				url: protocol + '://' + url.host + '/v1/' + location,
 				method: 'GET',
 				headers: {
 					'X-Vault-Token': vaultAccessToken,
@@ -253,9 +258,6 @@ export const loadFromVault = async (opts?: VaultOptions): Promise<Record<string,
 			}
 			if ((response.status < 200 || response.status > 299) && response.status != 404) {
 				throw new Error('unexpected status code ' + response.status.toString());
-			}
-			if (typeof response.data !== 'object') {
-				throw new Error('internal error');
 			}
 
 			if (typeof response.data === 'object') {
@@ -328,42 +330,41 @@ const readFileFromEnvSync = (envVar: string): string|undefined => {
 	return pem;
 };
 
-const validatePathParam = (path: string[]): string[] => {
-	const finalPaths: string[] = [];
+const addAndValidatePaths = (url: URL): string[] => {
+	const locations: string[] = [];
 	const keys = new Map<string, boolean>();
 
-	// No path? Error
-	if (path.length == 0) {
-		return [];
-	}
-	for (const p of path) {
+	const paths = [ url.pathname ];
+	paths.push(...url.searchParams.getAll('path'));
+
+	for (const p of paths) {
 		let _p = p.replaceAll('\\', '/').replace(/\/+/gu, '/');
 
-		// Path does not start with a slash? Error
-		if (!p.startsWith('/')) {
-			return [];
+		// Path starts and/or ends with a slash, remove them
+		if (_p.startsWith('/')) {
+			_p = _p.substring(1);
 		}
-		
-		// Path ends with a slash? Remove it
 		if (_p.endsWith('/')) {
 			_p = _p.substring(0, _p.length - 1);
 		}
 
 		// Path is empty or root? Error
-		if (_p.length == 0 || _p == '/') {
-			return [];
-		}
+		if (_p.length > 0) {
+			// Ignore duplicate path
+			const hash = crypto.createHash('sha256').update(_p).digest('hex');
+			if (keys.has(hash)) {
+				continue;
+			}
+			keys.set(hash, true);
 
-		// Ignore duplicate path
-		const hash = crypto.createHash('sha256').update(_p).digest('hex');
-		if (keys.has(hash)) {
-			continue;
+			locations.push(_p);
 		}
-		keys.set(hash, true);
+	}
 
-		finalPaths.push(_p);
+	if (locations.length == 0) {
+		throw new Error('No locations to read provided');
 	}
 
 	// Done
-	return finalPaths;
+	return locations;
 };

@@ -44,7 +44,7 @@ export const load = async (opts?: Options): Promise<KeyValueSet> => {
 	}
 
 	// Read variables from Hashicorp Vault if configured to do so
-	if ((!opts.vaultOpts) || opts.vaultOpts.disable) {
+	if (!(opts.vaultOpts && opts.vaultOpts.disable)) {
 		values = await loadFromVault(opts.vaultOpts);
 	}
 

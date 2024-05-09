@@ -28,7 +28,7 @@ export class EnumVar extends BaseVar {
 			if (typeof value !== 'string' || value.length < 1) {
 				throw new Error('Invalid variable definition for "' + this._name + '" (allowed values)');
 			}
-			this._allowed.push(value.toUpperCase());
+			this._allowed.push(value);
 		}
 		return this;
 	}
@@ -48,7 +48,7 @@ export class EnumVar extends BaseVar {
 
 		if (this._allowed) {
 			for (const allowedValue of this._allowed) {
-				if (value == allowedValue) {
+				if (value == allowedValue.toUpperCase()) {
 					return allowedValue;
 				}
 			}

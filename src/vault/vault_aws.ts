@@ -1,21 +1,23 @@
-import { getDefaultRoleAssumerWithWebIdentity } from '@aws-sdk/client-sts';
-import { RoleAssumerWithWebIdentity }  from '@aws-sdk/client-sts/dist-types/defaultStsRoleAssumers';
-import { ENV_CMDS_FULL_URI, ENV_CMDS_RELATIVE_URI, RemoteProviderConfig } from '@smithy/credential-provider-imds';
+import { getDefaultRoleAssumerWithWebIdentity }  from '@aws-sdk/client-sts';
+import { ENV_CMDS_FULL_URI, ENV_CMDS_RELATIVE_URI } from '@smithy/credential-provider-imds';
 import { getEnvVar } from '../util/envvars';
 import { SignatureV4 } from '@smithy/signature-v4';
 import { HttpRequest } from '@smithy/protocol-http';
 import { Sha256 } from '@aws-crypto/sha256-js';
-import { fromInstanceMetadata, fromContainerMetadata, FromTokenFileInit } from '@aws-sdk/credential-providers';
-import { fromTokenFile } from '@aws-sdk/credential-provider-web-identity';
+import { fromInstanceMetadata, fromContainerMetadata, fromTokenFile } from '@aws-sdk/credential-providers';
 import { chain, CredentialsProviderError, memoize } from '@smithy/property-provider';
 
 // -----------------------------------------------------------------------------
 
-interface CustomRemoteProviderInit extends RemoteProviderConfig {
-	roleAssumerWithWebIdentity?: RoleAssumerWithWebIdentity;
-}
+// interface CustomRemoteProviderInit extends RemoteProviderConfig {
+// 	roleAssumerWithWebIdentity?: RoleAssumerWithWebIdentity;
+// }
 
-export const customRemoteProvider = (init: CustomRemoteProviderInit) => {
+type TokenFileInit = Parameters<typeof fromTokenFile>[0];
+type ContainerMetadataInit = Parameters<typeof fromContainerMetadata>[0];
+type InstanceMetadataInit = Parameters<typeof fromInstanceMetadata>[0];
+
+export const customRemoteProvider = (init: ContainerMetadataInit & InstanceMetadataInit) => {
 	if (process.env[ENV_CMDS_RELATIVE_URI] || process.env[ENV_CMDS_FULL_URI]) {
 		return fromContainerMetadata(init);
 	}
@@ -27,7 +29,7 @@ export const customRemoteProvider = (init: CustomRemoteProviderInit) => {
 	return fromInstanceMetadata(init);
 };
 
-export const customFullProvider = (init: CustomRemoteProviderInit & FromTokenFileInit) => {
+export const customFullProvider = (init: TokenFileInit & ContainerMetadataInit & InstanceMetadataInit) => {
 	return memoize(
 		chain(
 			fromTokenFile(init),

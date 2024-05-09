@@ -18,7 +18,7 @@ test('Process Environment variables', async (t: ExecutionContext) => {
 		});
 
 		for (const [ k, v ] of Object.entries(values)) {
-			console.log(k, '=', v);
+			t.log(k, '=', v);
 		}
 	}
 	catch (err: any) {
